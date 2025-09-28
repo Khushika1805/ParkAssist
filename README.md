@@ -85,6 +85,17 @@ python -m http.server 5173
     </a>
   </div>
 
+<div>
+  <a href="https://www.youtube.com/watch?v=e38krZKMVp8" target="_blank">
+    <p>ParkAssist Demo - YouTube</p>
+  </a>
+  <a href="https://www.youtube.com/watch?v=e38krZKMVp8" target="_blank">
+    <img style="max-width:300px;" 
+      src="https://img.youtube.com/vi/e38krZKMVp8/hqdefault.jpg"
+      alt="YouTube video preview">
+  </a>
+</div>
+
 
 ---
 
