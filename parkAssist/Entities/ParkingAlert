@@ -1,0 +1,33 @@
+{
+  "name": "ParkingAlert",
+  "type": "object",
+  "properties": {
+    "lot_name": {
+      "type": "string",
+      "description": "Name of the parking lot to monitor"
+    },
+    "threshold_spaces": {
+      "type": "number",
+      "description": "Minimum free spaces to trigger alert"
+    },
+    "is_active": {
+      "type": "boolean",
+      "default": true,
+      "description": "Whether the alert is currently active"
+    },
+    "triggered_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "When the alert was last triggered"
+    },
+    "user_email": {
+      "type": "string",
+      "description": "Email of user who created the alert"
+    }
+  },
+  "required": [
+    "lot_name",
+    "threshold_spaces",
+    "user_email"
+  ]
+}

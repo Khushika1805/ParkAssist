@@ -1,0 +1,19 @@
+import React from 'react';
+import { Star } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+export default function FavoritesToggle({ active, onChange }) {
+  return (
+    <Button
+      variant={active ? "default" : "ghost"}
+      size="sm"
+      onClick={() => onChange(!active)}
+      className={`rounded-full transition-all duration-200 hover:scale-105 ${
+        active ? 'bg-amber-500 text-white' : ''
+      }`}
+    >
+      <Star className={`w-4 h-4 mr-2 ${active ? 'fill-current' : ''}`} />
+      Favorites
+    </Button>
+  );
+}

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>UMBC Parking — Live Campus Parking</title>
+
+  <!-- Tailwind (CDN) -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Leaflet -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- PapaParse (CSV parsing) -->
+  <script src="https://unpkg.com/papaparse@5.4.1/papaparse.min.js"></script>
+
+  <style>
+    :root {
+      --bg-primary: #FFFFFF;
+      --bg-secondary: #F8F9FA;
+      --bg-card: #FFFFFF;
+      --text-primary: #1F2937;
+      --text-secondary: #6B7280;
+      --border-color: #E5E7EB;
+      --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+    }
+    .dark {
+      --bg-primary: #111827;
+      --bg-secondary: #1F2937;
+      --bg-card: #374151;
+      --text-primary: #F9FAFB;
+      --text-secondary: #D1D5DB;
+      --border-color: #4B5563;
+      --shadow: 0 1px 3px 0 rgb(0 0 0 / 0.3), 0 1px 2px -1px rgb(0 0 0 / 0.3);
+      --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.3), 0 4px 6px -4px rgb(0 0 0 / 0.3);
+    }
+    body { background-color: var(--bg-primary); color: var(--text-primary); }
+    .card {
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
+      box-shadow: var(--shadow);
+    }
+    .chip { border: 1px solid var(--border-color); }
+    .badge { font-size: 0.75rem; padding: 0.2rem 0.6rem; border-radius: 9999px; border-width: 1px; }
+    .badge-available { color: #065F46; background: #ECFDF5; border-color: #A7F3D0; }
+    .badge-limited   { color: #92400E; background: #FFFBEB; border-color: #FDE68A; }
+    .badge-full      { color: #991B1B; background: #FEF2F2; border-color: #FECACA; }
+    .pill { border-radius: 9999px; }
+    .divider { border-color: var(--border-color); }
+    .subtle { color: var(--text-secondary); }
+    .btn { border-radius: 9999px; padding: 0.5rem 0.85rem; }
+    .btn-amber { background: #F59E0B; color: white; }
+    .btn-ghost { background: transparent; color: var(--text-secondary); }
+    .leaflet-container { border-radius: 0.5rem; }
+    .marker-dot {
+      width: 24px; height: 24px; border-radius: 50%; border: 3px solid white;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3); display:flex; align-items:center; justify-content:center;
+    }
+    .marker-center { width:8px; height:8px; background:white; border-radius:50%; }
+    .progress { width: 100%; height: 12px; background: #E5E7EB; border-radius: 9999px; overflow: hidden; }
+  </style>
+</head>
+<body>
+  <!-- HEADER -->
+  <header class="sticky top-0 z-10 border-b" style="background-color: var(--bg-primary); border-color: var(--border-color)">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-8 h-8 rounded-lg bg-gradient-to-r from-amber-500 to-orange-500 flex items-center justify-center text-white font-bold">P</div>
+        <div>
+          <h1 class="text-lg font-bold">UMBC Parking</h1>
+          <p class="text-xs subtle">Live Campus Parking</p>
+        </div>
+      </div>
+      <button id="themeToggle" class="btn btn-ghost rounded-full" title="Toggle theme">🌓</button>
+    </div>
+  </header>
+
+  <!-- MAP -->
+  <section class="max-w-6xl mx-auto px-4 pt-4">
+    <div id="map" class="w-full h-72"></div>
+  </section>
+
+  <!-- CONTROLS -->
+  <section class="max-w-6xl mx-auto px-4 pt-4">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <input id="searchInput" type="text" placeholder="Search parking lots..." class="w-full md:w-1/2 chip pill px-4 py-2 bg-transparent"/>
+      <div class="flex items-center gap-2">
+        <button data-filter="all" class="chip pill px-3 py-1 text-sm">All</button>
+        <button data-filter="available" class="chip pill px-3 py-1 text-sm text-green-600">Available</button>
+        <button data-filter="limited" class="chip pill px-3 py-1 text-sm text-yellow-600">Limited</button>
+        <button data-filter="full" class="chip pill px-3 py-1 text-sm text-red-600">Full</button>
+        <button id="favToggle" class="chip pill px-3 py-1 text-sm">⭐ Favorites</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- LIST -->
+  <section class="max-w-6xl mx-auto px-4 py-4">
+    <div id="list" class="space-y-3"></div>
+  </section>
+
+  <script>
+    // --- Theme toggler ---
+    const themeToggle = document.getElementById('themeToggle');
+    let isDark = false;
+    function applyTheme() {
+      document.documentElement.classList.toggle('dark', isDark);
+      // Switch the base map tiles for dark/light
+      if (window._tileLayer) {
+        const url = isDark
+          ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+          : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+        window._tileLayer.setUrl(url);
+      }
+    }
+    themeToggle.addEventListener('click', () => {
+      isDark = !isDark;
+      applyTheme();
+    });
+
+    // --- Map ---
+    const mapCenter = [39.2543, -76.7114]; // UMBC campus center
+    const map = L.map('map', { zoomControl: true }).setView(mapCenter, 15);
+    const tileUrlLight = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
+    const tileUrlDark  = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    window._tileLayer = L.tileLayer(tileUrlLight, {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    }).addTo(map);
+
+    function statusForLot(lot) {
+      const total = Number(lot.total_spaces || 100);
+      const occ   = Number(lot.occupied_spaces || 0);
+      const rate  = total > 0 ? occ / total : 0;
+      if (rate >= 0.9) return 'full';
+      if (rate >= 0.7) return 'limited';
+      return 'available';
+    }
+    function freeSpaces(lot) {
+      const total = Number(lot.total_spaces || 100);
+      const occ   = Number(lot.occupied_spaces || 0);
+      return Math.max(0, total - occ);
+    }
+    function markerColor(status) {
+      return status === 'available' ? '#10B981' : status === 'limited' ? '#F59E0B' : '#EF4444';
+    }
+    function makeDivIcon(status) {
+      const color = markerColor(status);
+      return L.divIcon({
+        html: '<div class="marker-dot" style="background:'+color+'"><div class="marker-center"></div></div>',
+        className: 'custom-parking-marker',
+        iconSize: [24,24],
+        iconAnchor: [12,12],
+        popupAnchor: [0,-12]
+      });
+    }
+
+    // --- Data & state ---
+    let allLots = [];
+    let markers = [];
+    let filter = 'all';
+    let showFavs = false;
+    let searchTerm = '';
+
+    const searchInput = document.getElementById('searchInput');
+    const favToggle = document.getElementById('favToggle');
+    const listEl = document.getElementById('list');
+    document.querySelectorAll('[data-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        filter = btn.getAttribute('data-filter');
+        render();
+      });
+    });
+    favToggle.addEventListener('click', () => { showFavs = !showFavs; favToggle.classList.toggle('bg-amber-50'); render(); });
+    searchInput.addEventListener('input', (e) => { searchTerm = e.target.value.toLowerCase(); render(); });
+
+    function clearMarkers() {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+    }
+
+    function renderMap(lots) {
+      clearMarkers();
+      lots.forEach(lot => {
+        const st = statusForLot(lot);
+        const m = L.marker([Number(lot.lat), Number(lot.lng)], { icon: makeDivIcon(st) })
+          .addTo(map)
+          .bindPopup(`
+            <div class="text-center">
+              <div class="font-semibold text-sm">${lot.name}</div>
+              <div class="text-xs subtle mt-1">${freeSpaces(lot)}/${lot.total_spaces || 100} Free</div>
+              <div class="text-xs mt-1 ${st==='available'?'text-green-600':st==='limited'?'text-yellow-600':'text-red-600'}">
+                ${st==='available'?'Available':st==='limited'?'Limited':'Full'}
+              </div>
+            </div>
+          `);
+        markers.push(m);
+      });
+    }
+
+    function badgeClass(st) {
+      return st==='available' ? 'badge badge-available' : st==='limited' ? 'badge badge-limited' : 'badge badge-full';
+    }
+
+    function renderList(lots) {
+      if (!lots.length) {
+        listEl.innerHTML = `
+          <div class="text-center py-12 card rounded-xl subtle">No parking lots match your criteria</div>
+        `;
+        return;
+      }
+      listEl.innerHTML = lots.map(lot => {
+        const st = statusForLot(lot);
+        const free = freeSpaces(lot);
+        const total = Number(lot.total_spaces || 100);
+        const occPct = total ? Math.round(((total - free)/total)*100) : 0;
+        return `
+        <div class="card rounded-xl p-4 cursor-pointer hover:scale-[1.01] transition" onclick="focusLot('${lot.id}')">
+          <div class="flex items-start justify-between gap-3">
+            <div class="flex-1">
+              <div class="flex items-center gap-2">
+                <span class="text-sm subtle">📍</span>
+                <h3 class="font-semibold text-lg">${lot.name}</h3>
+              </div>
+              <div class="mt-2 flex items-center gap-4">
+                <div class="flex items-center gap-2">
+                  <span class="text-2xl font-bold">${free}</span>
+                  <span class="subtle">/${total} Free</span>
+                </div>
+                <span class="${badgeClass(st)}">${st==='available'?'Available':st==='limited'?'Limited':'Full'}</span>
+              </div>
+              <div class="mt-3 flex items-center gap-2 subtle text-xs">⏱ Updated 2 min ago</div>
+            </div>
+            <button class="btn btn-ghost" onclick="toggleFavorite(event, '${lot.id}')">${lot.is_favorite ? '⭐' : '☆'}</button>
+          </div>
+          <div class="mt-4">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-medium">Capacity</span>
+              <span class="subtle text-sm">${total - free} occupied</span>
+            </div>
+            <div class="progress">
+              <div style="height:100%; width:${occPct}%; background:${st==='available'?'#10B981':st==='limited'?'#F59E0B':'#EF4444'}"></div>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    window.focusLot = function(id) {
+      const lot = allLots.find(l => l.id == id);
+      if (!lot) return;
+      map.setView([Number(lot.lat), Number(lot.lng)], 16, { animate: true });
+    };
+
+    window.toggleFavorite = function(e, id) {
+      e.stopPropagation();
+      const i = allLots.findIndex(l => l.id == id);
+      if (i >= 0) {
+        allLots[i].is_favorite = !allLots[i].is_favorite;
+        render();
+      }
+    };
+
+    function applyFilters() {
+      return allLots.filter(lot => {
+        const matchesSearch = String(lot.name || '').toLowerCase().includes(searchTerm);
+        const matchesFav = !showFavs || !!lot.is_favorite;
+        let matchesStatus = true;
+        if (filter !== 'all') matchesStatus = statusForLot(lot) === filter;
+        return matchesSearch && matchesFav && matchesStatus;
+      });
+    }
+
+    function render() {
+      const lots = applyFilters();
+      renderMap(lots);
+      renderList(lots);
+    }
+
+    // Try to load ParkingLot_export.csv from same folder as index.html
+    async function loadCSV() {
+      try {
+        const res = await fetch('ParkingLot_export.csv', { cache: 'no-store' });
+        if (!res.ok) throw new Error('CSV not found');
+        const text = await res.text();
+        const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+        const rows = parsed.data.map((r, idx) => ({
+          id: r.id || String(idx+1),
+          name: r.name || r.lot_name || 'Lot',
+          lat: parseFloat(r.lat),
+          lng: parseFloat(r.lng),
+          total_spaces: r.total_spaces ? Number(r.total_spaces) : (r.total || 100),
+          occupied_spaces: r.occupied_spaces ? Number(r.occupied_spaces) : (r.occupied || 0),
+          is_favorite: String(r.is_favorite || '').toLowerCase() === 'true'
+        })).filter(r => !Number.isNaN(r.lat) && !Number.isNaN(r.lng));
+        if (!rows.length) throw new Error('No valid rows');
+        allLots = rows;
+      } catch (e) {
+        console.warn('Falling back to inline sample data:', e.message);
+        allLots = [
+          { id: '1', name: 'Administration Drive Garage', lat: 39.2555, lng: -76.7131, total_spaces: 180, occupied_spaces: 125, is_favorite: true },
+          { id: '2', name: 'Lot 1',                       lat: 39.2534, lng: -76.7138, total_spaces: 120, occupied_spaces: 45,  is_favorite: false },
+          { id: '3', name: 'Commons Garage',              lat: 39.2564, lng: -76.7102, total_spaces: 300, occupied_spaces: 280, is_favorite: false },
+          { id: '4', name: 'Stadium Lot',                 lat: 39.2499, lng: -76.7139, total_spaces: 200, occupied_spaces: 80,  is_favorite: false }
+        ];
+      }
+      render();
+    }
+
+    loadCSV();
+  </script>
+</body>
+</html>

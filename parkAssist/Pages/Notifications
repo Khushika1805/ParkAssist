@@ -1,0 +1,136 @@
+import React, { useState, useEffect } from 'react';
+import { ParkingAlert, ParkingLot } from '@/entities/ParkingAlert';
+import { User } from '@/entities/User';
+import { Bell, Plus, Clock, MapPin, Trash2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import AlertCard from '../components/notifications/AlertCard';
+import CreateAlertModal from '../components/notifications/CreateAlertModal';
+import AlertHistory from '../components/notifications/AlertHistory';
+
+export default function NotificationsPage() {
+  const [alerts, setAlerts] = useState([]);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    loadUserAndAlerts();
+  }, []);
+
+  const loadUserAndAlerts = async () => {
+    try {
+      const currentUser = await User.me();
+      setUser(currentUser);
+      
+      const userAlerts = await ParkingAlert.filter({
+        user_email: currentUser.email
+      });
+      setAlerts(userAlerts);
+    } catch (error) {
+      console.error('Error loading alerts:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCreateAlert = async (alertData) => {
+    if (!user) return;
+    
+    try {
+      await ParkingAlert.create({
+        ...alertData,
+        user_email: user.email
+      });
+      await loadUserAndAlerts();
+      setShowCreateModal(false);
+    } catch (error) {
+      console.error('Error creating alert:', error);
+    }
+  };
+
+  const handleDeleteAlert = async (alertId) => {
+    try {
+      await ParkingAlert.delete(alertId);
+      setAlerts(prev => prev.filter(alert => alert.id !== alertId));
+    } catch (error) {
+      console.error('Error deleting alert:', error);
+    }
+  };
+
+  const activeAlerts = alerts.filter(alert => alert.is_active);
+  const pastAlerts = alerts.filter(alert => !alert.is_active || alert.triggered_at);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-amber-500" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold" style={{ color: 'var(--text-primary)' }}>
+            Parking Alerts
+          </h1>
+          <p className="text-sm mt-1" style={{ color: 'var(--text-secondary)' }}>
+            Get notified when parking becomes available
+          </p>
+        </div>
+        
+        <Button
+          onClick={() => setShowCreateModal(true)}
+          className="bg-amber-500 hover:bg-amber-600 rounded-full"
+        >
+          <Plus className="w-4 h-4 mr-2" />
+          New Alert
+        </Button>
+      </div>
+
+      {/* Active Alerts */}
+      <div>
+        <h2 className="text-lg font-semibold mb-3" style={{ color: 'var(--text-primary)' }}>
+          Active Alerts ({activeAlerts.length})
+        </h2>
+        
+        {activeAlerts.length > 0 ? (
+          <div className="space-y-3">
+            {activeAlerts.map((alert) => (
+              <AlertCard
+                key={alert.id}
+                alert={alert}
+                onDelete={() => handleDeleteAlert(alert.id)}
+              />
+            ))}
+          </div>
+        ) : (
+          <div 
+            className="text-center py-8 rounded-xl border border-dashed"
+            style={{ 
+              borderColor: 'var(--border-color)',
+              color: 'var(--text-secondary)'
+            }}
+          >
+            <Bell className="w-8 h-8 mx-auto mb-2 opacity-50" />
+            <p>No active alerts</p>
+            <p className="text-sm mt-1">Create your first alert to get started</p>
+          </div>
+        )}
+      </div>
+
+      {/* Alert History */}
+      <AlertHistory alerts={pastAlerts} />
+
+      {/* Create Alert Modal */}
+      {showCreateModal && (
+        <CreateAlertModal
+          onClose={() => setShowCreateModal(false)}
+          onSubmit={handleCreateAlert}
+        />
+      )}
+    </div>
+  );
+}
