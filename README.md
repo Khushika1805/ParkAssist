@@ -2,7 +2,7 @@
 ---
 
 ## Author
-```
+
   Author:
     HackUMBC 2025 - Team GoGreen
     - Khushika Shah (kshah7@umbc.edu) 
@@ -92,4 +92,3 @@ python -m http.server 5173
 - Multiple lots (`LOTS` dict in backend) • polygon masks per slot • Leaflet map badges • health check (`/healthz`) • better error handling for video feeds • export historical CSV.
 
     9/27/2025
-```
