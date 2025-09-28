@@ -75,6 +75,17 @@ python -m http.server 5173
 # open http://localhost:5173/simple.html
 ```
 
+### 5) Demo Video:
+<div>
+    <a href="https://www.loom.com/share/102595ef4137469b9688cd86916b262a">
+      <p>ParkAssist - 28 September 2025 - Watch Video</p>
+    </a>
+    <a href="https://www.loom.com/share/102595ef4137469b9688cd86916b262a">
+      <img style="max-width:300px;" src="https://cdn.loom.com/sessions/thumbnails/102595ef4137469b9688cd86916b262a-f684df3ba2f733b2-full-play.gif">
+    </a>
+  </div>
+
+
 ---
 
 ## Key Constants (tune as needed)
